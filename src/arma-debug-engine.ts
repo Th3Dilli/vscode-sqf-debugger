@@ -1,5 +1,6 @@
 import * as WebSocket from 'ws';
 import { EventEmitter } from 'events';
+import { SQFDebugSession } from './sqf-debug';
 
 
 export enum BreakpointAction
@@ -202,6 +203,7 @@ export class ArmaDebugEngine extends EventEmitter {
 
     logging:boolean = false;
     verbose:boolean = false;
+	port: number = SQFDebugSession.DEFAULT_PORT;
 
     breakpoints: { [key: number]: IBreakpointRequest } = {};
     breakpointId = 0;
@@ -246,8 +248,7 @@ export class ArmaDebugEngine extends EventEmitter {
                 resolve();
             });
             
-            const ADE_PORT = 9002;
-            this.client = new WebSocket(`ws://localhost:${ADE_PORT}`);
+            this.client = new WebSocket(`ws://localhost:${this.port}`);
             this.client.on('open', () => {
                 this.connected = true;
                 this.sendCommand(this.nextHandle(), Commands.getVersionInfo);
@@ -269,7 +270,7 @@ export class ArmaDebugEngine extends EventEmitter {
             
             this.client.on('error', (err:Error) => {
                 if((err as any)?.code === 'ECONNREFUSED') {
-                    this.error(`Could not connect to Arma Debug Engine`);
+                    this.error(`Could not connect to Arma Debug Engine on port: ${this.port}`);
                 } else {
                     this.error(`Socket error: ${err.message}`);
                 }
@@ -344,7 +345,7 @@ export class ArmaDebugEngine extends EventEmitter {
                 let json = JSON.parse(cmd);
                 json.handle = this.nextHandle();
                 this.send(json);
-                resolve();
+                resolve("");
             } catch (error) {
                 reject(error);
             }

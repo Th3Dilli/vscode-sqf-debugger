@@ -11,12 +11,12 @@ import {
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { ArmaDebugEngine, ICallStackItem, IVariable, VariableScope, IValue, ContinueExecutionType, BreakpointAction, IBreakpointActionExecCode, IBreakpointActionHalt, IBreakpointActionLogCallstack, IBreakpointConditionHitCount, IBreakpointConditionCode, BreakpointCondition, ISourceCode, IRemoteMessage, IError } from './arma-debug-engine';
 import { trueCasePathSync } from 'true-case-path';
-import { Message } from 'vscode-debugadapter/lib/messages';
 
 export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	//rptPath?: string
 	missionRoot?: string,
-	scriptPrefix?: string
+	scriptPrefix?: string,
+	port?: number
 }
 
 interface ICachedVariable {
@@ -56,12 +56,14 @@ export class SQFDebugSession extends DebugSession {
 	private static STACK_VARIABLES_ID = 200;
 	private static VARIABLES_ID = 256;
 	private static VARIABLE_EXPAND_ID = 1024 * 1024;
+	public static DEFAULT_PORT = 9002;
 
 	//private monitor: RptMonitor;
 	private debugger: ArmaDebugEngine | null = null;
 
 	private missionRoot: string = '';
 	private scriptPrefix: string = '';
+	private port: number = SQFDebugSession.DEFAULT_PORT;
 
 	private variables: ICachedVariable[] = [];
 	private sourceIndex: ISource[] = [];
@@ -99,9 +101,7 @@ export class SQFDebugSession extends DebugSession {
 			response.body.supportsEvaluateForHovers = this.allowEval;
 		}
 
-		this.connect().then(() =>
-			this.sendResponse(response)
-		);
+		this.sendResponse(response);
 	}
 
 	protected connect(): Promise<void> {
@@ -114,21 +114,10 @@ export class SQFDebugSession extends DebugSession {
 		this.variables = [];
 
 		this.debugger = new ArmaDebugEngine();
+		this.debugger.port = this.port;
 		this.debugger.logging = this.logging;
 		this.debugger.verbose = this.verbose;
 
-		// let connected = new Promise<boolean>((resolve, reject) => {
-		// 	setTimeout(() => {
-		// 		this.disconnect();
-		// 		reject('Timed out');
-		// 	}, 10000);
-		// 	return this.debugger?.on('connected', () => {
-		// 		this.variables = [];
-		// 		this.sendEvent(new OutputEvent('connected'));
-		// 		this.log('Connected to Arma Debug Engine');
-		// 		resolve(true);
-		// 	});
-		// });
 
 		this.debugger.on('halt-breakpoint', () => {
 			this.variables = [];
@@ -162,9 +151,9 @@ export class SQFDebugSession extends DebugSession {
 		});
 		return this.debugger.connect().then(() => {
 			this.variables = [];
-			this.sendEvent(new OutputEvent('connected'));
-			vscode.window.setStatusBarMessage('Connected to Arma Debug Engine');
-			this.log('Connected to Arma Debug Engine');
+			let msg = `Connected to Arma Debug Engine on port: ${this.debugger?.port}`;
+			vscode.window.setStatusBarMessage(msg);
+			this.log(msg);
 			this.debugger?.clearAllBreakpoints();
 		}).catch(err => {
 			this.disconnect();
@@ -183,10 +172,12 @@ export class SQFDebugSession extends DebugSession {
 
 	// Debugger API implementation --------------
 	protected launchRequest(response: DebugProtocol.LaunchResponse, args: LaunchRequestArguments): void {
-		this.log(`Launching`);
 
 		this.missionRoot = args.missionRoot?.toLowerCase() || "";
 		this.scriptPrefix = args.scriptPrefix?.toLowerCase() || "";
+		this.port = args.port || SQFDebugSession.DEFAULT_PORT;
+		this.log(`Launching on port ` + this.port);
+		this.connect();
 
 		this.sendResponse(response);
 
@@ -266,7 +257,7 @@ export class SQFDebugSession extends DebugSession {
 			this.sendResponse(response);
 		}
 		if (args.expression && args.expression.charAt(0) === '\\') {
-			this.debugger.executeRaw(args.expression.substr(1)).then(result => {
+			this.debugger.executeRaw(args.expression.substring(1)).then(result => {
 				//response.body.result = result;
 				this.sendResponse(response);
 			}).catch(err => {

@@ -74,7 +74,8 @@
 					"launch": {
 						"required": [
 							"missionRoot",
-							"scriptPrefix"
+							"scriptPrefix",
+							"port"
 						],
 						"properties": {
 							"missionRoot": {
@@ -86,6 +87,11 @@
 								"type": "string",
 								"default": "${workspaceFolder}",
 								"description": "Ingame script prefix"
+							},
+							"port": {
+								"type": "number",
+								"default": 9002,
+								"description": "Port for Arma Debug Engine"
 							}
 						}
 					}
